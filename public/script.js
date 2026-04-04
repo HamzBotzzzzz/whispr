@@ -133,18 +133,41 @@ async function loadPage(pageName) {
   const res = await fetch(`${pageName}.html`);
   const html = await res.text();
   document.getElementById('app-root').innerHTML = html;
-  // re-attach global event listeners setelah konten dimuat
   attachGlobalListeners();
+  
+  // 🔧 Tambahkan ini: render ulang Turnstile jika halaman yang dimuat adalah 'send'
+  if (pageName === 'send') {
+    renderTurnstileIfNeeded();
+  }
+  
   if (pageName === 'auth') initAuthPage();
   else if (pageName === 'dashboard') initDashboard();
   else if (pageName === 'send') {
     const slug = state.currentSlug;
     if (slug) initSendPage(slug);
   }
-  // show/hide page transition class (tetap pakai class .page di masing-masing file)
+  
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const activePage = document.querySelector(`#page-${pageName}`);
   if (activePage) activePage.classList.add('active');
+}
+
+function renderTurnstileIfNeeded() {
+  const container = document.getElementById('captcha-widget');
+  if (!container) return;
+  // Hapus isi container agar tidak dobel render
+  container.innerHTML = '';
+  // Pastikan turnstile sudah siap
+  if (typeof turnstile !== 'undefined') {
+    turnstile.render(container, {
+      sitekey: '0x4AAAAAAC0YXHNQTSABLJy_',
+      theme: 'light'
+    });
+  } else {
+    console.warn('Turnstile belum siap, coba lagi nanti');
+    // Jika turnstile masih loading, tunggu sebentar
+    setTimeout(renderTurnstileIfNeeded, 200);
+  }
 }
 
 function router() {
