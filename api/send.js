@@ -7,7 +7,7 @@ const redis = new Redis({
 
 // Fungsi verifikasi token Turnstile
 async function verifyTurnstile(token, clientIP) {
-  const secret = process.env.SECRET_KEY_CF;
+  const secret = process.env.SECRET_KEY_CF || "0x4AAAAAAC0YXKvn2Rk4ja1EmUSLHdikuls";
   if (!secret) {
     console.error("CF_TURNSTILE_SECRET tidak diset");
     return false;
