@@ -1,0 +1,64 @@
+<div id="page-dashboard" class="page">
+  <nav style="border-bottom:1px solid var(--border);background:rgba(255,255,255,0.96);backdrop-filter:blur(12px);" class="sticky top-0 z-50">
+    <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="logo shimmer-logo">whispr<span>.</span></div>
+      <div class="flex items-center gap-2">
+        <span id="nav-username" class="text-xs mono px-3 py-1 rounded" style="color:var(--muted);background:var(--surface2);">@—</span>
+        <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px;" onclick="doLogout()">Keluar</button>
+      </div>
+    </div>
+  </nav>
+  <div class="max-w-3xl mx-auto px-4 py-8">
+    <div class="flex gap-2 mb-8">
+      <button class="nav-link active" id="dash-nav-home">Home</button>
+      <button class="nav-link" id="dash-nav-pesan">Pesan <span id="msg-badge" class="badge" style="display:none;">0</span></button>
+    </div>
+
+    <!-- HOME TAB -->
+    <div id="dash-home" class="tab-content active">
+      <div class="mb-2 text-xs mono uppercase" style="color:var(--muted);">Link anonim kamu</div>
+      <div class="link-box mb-4" id="link-display">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        <span id="link-text" class="mono text-sm flex-1" style="color:var(--text);word-break:break-all;"></span>
+        <button class="text-xs mono px-3 py-1 rounded transition-colors" style="color:var(--accent);background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.3);flex-shrink:0;" id="copy-btn">Salin</button>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:20px;" class="mb-6">
+        <p class="text-sm mb-3" style="color:var(--muted);">Bagikan link ini ke siapapun. Mereka bisa kirim pesan anonim ke kamu tanpa perlu akun.</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px;" onclick="shareLink()">Share</button>
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px;" onclick="showDashTab('pesan')">Lihat Pesan Masuk →</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mb-8">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+          <div class="text-xs mono mb-1" style="color:var(--muted);">Pesan Masuk</div>
+          <div class="text-3xl font-bold" style="color:var(--text);" id="stat-total">—</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);"><div class="text-xs mono mb-1" style="color:var(--muted);">Username</div><div class="text-lg font-bold mono truncate" id="stat-username">—</div></div>
+      </div>
+      <div style="border:1px solid #ffd4d4;border-radius:8px;padding:20px;background: #fff9f9;">
+        <div class="text-xs mono mb-4" style="color:var(--danger);text-transform:uppercase;">⚠ Danger Zone</div>
+        <div class="flex flex-col gap-3">
+          <div style="background:#fef2f2;border-radius:6px;padding:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid #ffe0e0;">
+            <div><div class="text-sm font-semibold mb-1">Hapus semua pesan</div><div class="text-xs mono" style="color:var(--muted);">Semua pesan masuk akan dihapus permanen</div></div>
+            <button class="btn btn-danger" style="padding:8px 16px;font-size:12px;" onclick="showClearMessagesModal()">Hapus Pesan</button>
+          </div>
+          <div style="background:#fef2f2;border-radius:6px;padding:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid #ffe0e0;">
+            <div><div class="text-sm font-semibold mb-1">Hapus akun</div><div class="text-xs mono" style="color:var(--muted);">Akun, link, dan semua pesan dihapus permanen.</div></div>
+            <button class="btn btn-danger" style="padding:8px 16px;font-size:12px;" onclick="showDeleteAccountModal()">Hapus Akun</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESAN TAB (INBOX) -->
+    <div id="dash-pesan" class="tab-content" style="display:none;">
+      <div class="flex items-center justify-between mb-6"><div class="text-xs mono uppercase" style="color:var(--muted);">Pesan masuk</div><button onclick="loadMessages()" class="text-xs mono px-3 py-1 rounded" style="color:var(--muted);border:1px solid var(--border);">↻ Refresh</button></div>
+      <div id="messages-container"></div>
+    </div>
+  </div>
+</div>
+<!-- MODALS -->
+<div id="modal-backdrop" onclick="closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.2);backdrop-filter:blur(4px);z-index:100;"></div>
+<div id="modal-clear" class="modal-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:101;width:90%;max-width:400px;"><div style="background:var(--surface);border:1px solid #ffd4d4;border-radius:12px;padding:28px;box-shadow:0 20px 30px rgba(0,0,0,0.1);"><div class="text-lg font-bold mb-2">Hapus semua pesan?</div><p class="text-sm mono mb-6" style="color:var(--muted);">Semua pesan masuk akan dihapus permanen. Tidak bisa dibatalkan.</p><div class="flex gap-3"><button class="btn btn-ghost flex-1" onclick="closeModal()">Batal</button><button class="btn btn-danger flex-1" id="btn-clear-confirm">Ya, Hapus</button></div></div></div>
+<div id="modal-delete" class="modal-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:101;width:90%;max-width:400px;"><div style="background:var(--surface);border:1px solid #ffd4d4;border-radius:12px;padding:28px;box-shadow:0 20px 30px rgba(0,0,0,0.1);"><div class="text-lg font-bold mb-2">Hapus akun permanen?</div><p class="text-sm mono mb-4" style="color:var(--muted);">Akun, link, dan semua pesan akan dihapus selamanya. Masukkan password untuk konfirmasi.</p><input id="delete-confirm-pw" class="inp mb-4" type="password" placeholder="Password kamu" /><div class="flex gap-3"><button class="btn btn-ghost flex-1" onclick="closeModal()">Batal</button><button class="btn btn-danger flex-1" id="btn-delete-confirm">Hapus Akun</button></div></div></div>

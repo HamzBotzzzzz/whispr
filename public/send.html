@@ -1,0 +1,16 @@
+<div id="page-send" class="page">
+  <div class="min-h-screen flex flex-col items-center justify-center px-4">
+    <div class="send-card w-full">
+      <div class="logo mb-1">whispr<span>.</span></div>
+      <p class="text-xs mono mb-8" style="color:var(--muted);">platform pesan anonim</p>
+      <div id="send-profile" class="mb-6"><div class="flex items-center gap-3 mb-1"><div class="dot"></div><span class="text-xs mono uppercase" style="color:var(--muted);">Kirim pesan anonim ke</span></div><div class="text-2xl font-bold" id="send-username">loading...</div></div>
+      <div id="send-form-wrap">
+        <div class="mb-4"><textarea id="send-msg" class="inp" rows="5" placeholder="tulis pesan anonim kamu di sini..." maxlength="500" oninput="updateCharCount()"></textarea><div class="flex justify-between items-center mt-2"><span class="text-xs mono" style="color:var(--muted);">pesan ini 100% anonim</span><span class="char-count" id="char-count">0 / 500</span></div></div>
+        <div id="captcha-widget" class="cf-turnstile mb-4" data-sitekey="0x4AAAAAAC0YXHNQTSABLJy_" data-theme="light"></div>
+        <button class="btn btn-accent w-full" id="btn-send">Kirim Anonim →</button>
+      </div>
+      <div id="send-success" style="display:none;" class="text-center py-4 fade-up"><div class="text-4xl mb-4">✦</div><div class="font-bold mb-2">Pesan terkirim!</div><p class="text-sm mono" style="color:var(--muted);">Pesanmu sudah sampai. Mereka tidak tahu kamu siapa.</p><button class="btn btn-ghost mt-6" onclick="resetSendForm()">Kirim lagi</button></div>
+    </div>
+    <p class="text-xs mono mt-6" style="color:var(--muted);">ingin punya link sendiri? <span onclick="window.location.href='/'" style="color:#000;cursor:pointer;text-decoration:underline;">daftar gratis</span></p>
+  </div>
+</div>

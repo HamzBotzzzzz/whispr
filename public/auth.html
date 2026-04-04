@@ -1,0 +1,29 @@
+<div id="page-auth" class="page active">
+  <div class="min-h-screen flex flex-col items-center justify-center px-4">
+    <div class="mb-12 text-center" style="animation: fadeUp 0.5s ease;">
+      <div class="logo logo-glow">whispr<span>.</span></div>
+      <p class="text-sm mono" style="color:var(--muted);">kirim pesan anonim ke siapapun</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:36px;width:100%;max-width:400px;box-shadow:0 8px 20px rgba(0,0,0,0.04);">
+      <div class="tab-bar mb-6">
+        <div class="tab active" id="tab-login">Masuk</div>
+        <div class="tab" id="tab-register">Daftar</div>
+      </div>
+      <div id="form-login">
+        <div class="flex flex-col gap-4">
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Username</label><input id="login-username" class="inp" type="text" placeholder="username kamu" /></div>
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Password</label><input id="login-password" class="inp" type="password" placeholder="••••••" /></div>
+          <button class="btn btn-accent w-full mt-2" id="btn-login">Masuk</button>
+        </div>
+      </div>
+      <div id="form-register" style="display:none;">
+        <div class="flex flex-col gap-4">
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Username</label><input id="reg-username" class="inp" type="text" placeholder="pilih username unik" /></div>
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Password</label><input id="reg-password" class="inp" type="password" placeholder="min. 6 karakter" /></div>
+          <button class="btn btn-accent w-full mt-2" id="btn-register">Buat Akun</button>
+        </div>
+      </div>
+    </div>
+    <p class="text-xs mono mt-6" style="color:var(--muted);">anonim. no tracking. no bs.</p>
+  </div>
+</div>
