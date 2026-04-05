@@ -3,41 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <title>whispr — pesan anonim</title>
-  <meta name="description" content="Kirim dan terima pesan anonim tanpa rekayasa. Cepat, sederhana, dan privat." />
-  <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://anonymous.web.id/" />
-
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://anonymous.web.id/" />
-  <meta property="og:title" content="whispr — pesan anonim" />
-  <meta property="og:description" content="Kirim pesan anonim tanpa bot atau rekayasa." />
-  <meta property="og:image" content="https://anonymous.web.id/preview.png" />
-
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="whispr — pesan anonim" />
-  <meta name="twitter:description" content="Kirim pesan anonim tanpa rekayasa." />
-  <meta name="twitter:image" content="https://anonymous.web.id/preview.png" />
-
-  <meta name="google-site-verification" content="google-site-verification=DyqXp0IlF8grjO9Hart80neI23aqnnH-VqyFK1zln3A" />
-
-  <link rel="icon" href="/favicon.ico" />
-
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-
-  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+<!-- GLOBAL ELEMENTS (selalu ada) -->
 <div id="toast"></div>
 <div class="scroll-top" id="scroll-top">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
 </div>
 
+<!-- MODAL VIEWER PESAN (Teks + Audio) -->
 <div id="msg-viewer" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);">
   <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);">
     <div class="mono text-xs" style="color:var(--muted);">whispr — pesan anonim</div>
@@ -49,9 +30,7 @@
       <div class="mono text-xs mt-2" style="color:var(--muted);">anonymous</div>
     </div>
     <div id="viewer-msg" style="width:380px;max-width:90%;background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;text-align:center;line-height:1.65;font-size:16px;box-shadow:0 12px 28px rgba(0,0,0,0.08);"></div>
-    <div class="mt-8 text-center">
-      <a href="https://instagram.com/hamzz_jr" target="_blank" rel="noopener noreferrer" style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px dashed var(--border);">reveal sender</a>
-    </div>
+    <div class="mt-8 text-center"><a href="https://instagram.com/hamzz_jr" target="_blank" rel="noopener noreferrer" style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px dashed var(--border);">reveal sender</a></div>
   </div>
 </div>
 
@@ -73,6 +52,7 @@
   </div>
 </div>
 
+<!-- TEMPAT KONTEN DINAMIS -->
 <div id="app-root"></div>
 
 <script src="script.js"></script>
