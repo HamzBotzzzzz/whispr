@@ -23,7 +23,7 @@ html, body {
 }
 .mono { font-family: 'DM Mono', monospace; }
 
-/* noise overlay */
+/* noise overlay (ringan biar tetap modern) */
 body::before {
   content: '';
   position: fixed;
@@ -34,7 +34,7 @@ body::before {
   opacity: 0.2;
 }
 
-/* ----- PAGE TRANSITIONS (untuk SPA) ----- */
+/* ----- PAGE TRANSITIONS ----- */
 .page {
   display: none;
   opacity: 0;
@@ -126,11 +126,10 @@ body::before {
 .nav-link.active {
   color: var(--text);
   background: var(--surface2);
-  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.08), 
-              inset -1px -1px 2px rgba(255, 255, 255, 0.8);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.08), inset -1px -1px 2px rgba(255, 255, 255, 0.8);
 }
 
-/* ----- MESSAGE CARDS ----- */
+/* ----- MESSAGE CARDS (UNREAD / READ) ----- */
 .msg-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -313,7 +312,7 @@ textarea.inp { resize: none; line-height: 1.6; }
 }
 .fade-up { animation: fadeUp 0.35s ease forwards; }
 
-/* FULLSCREEN VIEWER MODAL */
+/* ----- FULLSCREEN VIEWER MODAL ----- */
 #msg-viewer {
   opacity: 0;
   transform: scale(0.96);
@@ -407,4 +406,117 @@ textarea.inp { resize: none; line-height: 1.6; }
 }
 .shimmer-logo span {
   -webkit-text-fill-color: var(--muted);
+}
+
+/* ----- VOICE RECORDER ----- */
+.vn-recorder {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--surface2);
+  margin-bottom: 12px;
+}
+.vn-btn-record {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.vn-btn-record:hover { border-color: var(--danger); }
+.vn-btn-record.recording {
+  background: var(--danger);
+  border-color: var(--danger);
+  animation: pulse-rec 1.2s ease infinite;
+}
+@keyframes pulse-rec {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,69,69,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255,69,69,0); }
+}
+.vn-timer {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 36px;
+}
+.vn-timer.active { color: var(--danger); }
+
+/* Mini audio player di send page */
+.vn-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+}
+.vn-play-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--text);
+  color: var(--surface);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.vn-play-btn:hover { background: var(--accent); color: #0a0a0a; }
+.vn-progress-wrap {
+  flex: 1;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+}
+.vn-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.1s linear;
+}
+.vn-duration {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Audio player di msg card */
+.msg-audio-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+}
+.msg-play-btn {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: var(--text);
+  color: var(--surface);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.msg-play-btn:hover { background: var(--accent); color: #0a0a0a; }
+.msg-audio-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: rgba(200,241,53,0.12);
+  flex-shrink: 0;
 }
