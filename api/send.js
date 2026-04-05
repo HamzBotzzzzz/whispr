@@ -5,7 +5,6 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// Fungsi verifikasi token Turnstile
 async function verifyTurnstile(token, clientIP) {
   const secret = process.env.SECRET_KEY_CF || "0x4AAAAAAC0YXKvn2Rk4ja1EmUSLHdikuls";
   if (!secret) {
@@ -34,36 +33,35 @@ module.exports = async (req, res) => {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { slug, message, captchaToken } = req.body || {};
+  const { slug, message, audio_url, captchaToken } = req.body || {};
 
-  // Validasi input
-  if (!slug || !message)
-    return res.status(400).json({ error: "Slug dan pesan wajib diisi" });
+  // minimal harus ada salah satu: message atau audio_url
+  if (!slug) return res.status(400).json({ error: "Slug wajib diisi" });
+  if (!message && !audio_url) return res.status(400).json({ error: "Pesan atau voice note wajib diisi" });
+  if (message && message.trim().length < 1) return res.status(400).json({ error: "Pesan tidak boleh kosong" });
+  if (message && message.length > 500) return res.status(400).json({ error: "Pesan maksimal 500 karakter" });
 
-  if (message.trim().length < 1)
-    return res.status(400).json({ error: "Pesan tidak boleh kosong" });
-
-  if (message.length > 500)
-    return res.status(400).json({ error: "Pesan maksimal 500 karakter" });
-
-  // Validasi captcha
-  if (!captchaToken) {
-    return res.status(400).json({ error: "Verifikasi keamanan diperlukan" });
-  }
+  // validasi captcha
+  if (!captchaToken) return res.status(400).json({ error: "Verifikasi keamanan diperlukan" });
 
   const clientIP = req.headers["cf-connecting-ip"] || req.socket.remoteAddress || "";
   const isCaptchaValid = await verifyTurnstile(captchaToken, clientIP);
-  if (!isCaptchaValid) {
-    return res.status(403).json({ error: "Captcha tidak valid, coba lagi" });
-  }
+  if (!isCaptchaValid) return res.status(403).json({ error: "Captcha tidak valid, coba lagi" });
 
   // resolve slug ke username
   const usernameLower = await redis.get(`slug:${slug.toLowerCase()}`);
   if (!usernameLower) return res.status(404).json({ error: "Link tidak ditemukan" });
 
+  // tentukan type
+  let type = "text";
+  if (message && audio_url) type = "both";
+  else if (audio_url) type = "voice";
+
   const msgData = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    message: message.trim(),
+    message: message ? message.trim() : null,
+    audio_url: audio_url || null,
+    type,
     sentAt: Date.now(),
     read: false,
   };
