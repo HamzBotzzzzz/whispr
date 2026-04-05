@@ -5,7 +5,55 @@
       <p class="text-xs mono mb-8" style="color:var(--muted);">platform pesan anonim</p>
       <div id="send-profile" class="mb-6"><div class="flex items-center gap-3 mb-1"><div class="dot"></div><span class="text-xs mono uppercase" style="color:var(--muted);">Kirim pesan anonim ke</span></div><div class="text-2xl font-bold" id="send-username">loading...</div></div>
       <div id="send-form-wrap">
-        <div class="mb-4"><textarea id="send-msg" class="inp" rows="5" placeholder="tulis pesan anonim kamu di sini..." maxlength="500" oninput="updateCharCount()"></textarea><div class="flex justify-between items-center mt-2"><span class="text-xs mono" style="color:var(--muted);">pesan ini 100% anonim</span><span class="char-count" id="char-count">0 / 500</span></div></div>
+        <!-- TEXT INPUT -->
+        <div class="mb-4">
+          <textarea id="send-msg" class="inp" rows="4" placeholder="tulis pesan anonim kamu di sini... (opsional)" maxlength="500" oninput="updateCharCount()"></textarea>
+          <div class="flex justify-between items-center mt-2">
+            <span class="text-xs mono" style="color:var(--muted);">pesan ini 100% anonim</span>
+            <span class="char-count" id="char-count">0 / 500</span>
+          </div>
+        </div>
+
+        <!-- VOICE NOTE RECORDER -->
+        <div class="vn-recorder mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs mono uppercase" style="color:var(--muted);letter-spacing:0.06em;">Voice Note <span style="opacity:0.5;">(opsional)</span></span>
+            <button id="vn-cancel-btn" onclick="cancelRecording()" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--danger);background:none;border:none;cursor:pointer;">✕ Hapus</button>
+          </div>
+
+          <!-- State: idle -->
+          <div id="vn-idle" class="flex items-center gap-3">
+            <button class="vn-btn-record" id="vn-record-btn" onclick="toggleRecording()" title="Mulai rekam">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+            </button>
+            <span class="text-xs mono" style="color:var(--muted);">Tap untuk merekam suara</span>
+          </div>
+
+          <!-- State: recording -->
+          <div id="vn-recording" style="display:none;" class="flex items-center gap-3">
+            <button class="vn-btn-record recording" onclick="toggleRecording()" title="Stop">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+            <span class="vn-timer active" id="vn-timer">0:00</span>
+            <span class="text-xs mono" style="color:var(--danger);">Sedang merekam...</span>
+          </div>
+
+          <!-- State: preview -->
+          <div id="vn-preview-wrap" style="display:none;">
+            <div class="vn-preview">
+              <button class="vn-play-btn" id="vn-play-btn" onclick="togglePreviewPlay()">
+                <svg id="vn-play-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+              </button>
+              <div class="vn-progress-wrap" onclick="seekPreview(event)">
+                <div class="vn-progress-bar" id="vn-progress-bar"></div>
+              </div>
+              <span class="vn-duration" id="vn-duration">0:00</span>
+            </div>
+            <button onclick="reRecord()" class="text-xs mono mt-2" style="color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 0;">↺ Rekam ulang</button>
+          </div>
+        </div>
+
+        <!-- CAPTCHA -->
         <div id="captcha-widget" class="cf-turnstile mb-4" data-sitekey="0x4AAAAAAC0YXHNQTSABLJy_" data-theme="light"></div>
         <button class="btn btn-accent w-full" id="btn-send">Kirim Anonim →</button>
       </div>
