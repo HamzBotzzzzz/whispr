@@ -7,9 +7,9 @@ const state = {
   messages: []
 };
 
-// Generate ID unik untuk pesan (hash sederhana)
+// Generate ID unik untuk pesan
 function generateMessageId(msg) {
-  const raw = `${msg.message}|${msg.sentAt}`;
+  const raw = `${msg.message}|${msg.sentAt}|${msg.audio_url || ''}`;
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
     hash = ((hash << 5) - hash) + raw.charCodeAt(i);
@@ -18,7 +18,6 @@ function generateMessageId(msg) {
   return `msg_${Math.abs(hash)}`;
 }
 
-// Fungsi untuk menyimpan & membaca status baca (localStorage per user)
 function getReadStorageKey(username) { return `whispr_read_${username}`; }
 function getReadIds(username) {
   const stored = localStorage.getItem(getReadStorageKey(username));
@@ -35,12 +34,18 @@ function isMessageRead(username, msgId) {
   return getReadIds(username).includes(msgId);
 }
 
-// Helper untuk escape
 function escapeHtml(str) {
+  if (!str) return '';
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/\n/g, "<br>");
 }
 function escapeJsString(str) {
-  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+  if (!str) return '';
+  return str.replace(/\\/g, '\\\\')
+            .replace(/`/g, '\\`')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r');
 }
 function formatTime(ts) {
   const d = new Date(ts), now = new Date(), diff = now - d;
@@ -71,7 +76,7 @@ function toast(msg, type = "success") {
 }
 
 /* ============================
-   RENDER MESSAGES (dengan status baca)
+   RENDER MESSAGES
    ============================ */
 function renderMessages() {
   const container = document.getElementById("messages-container");
@@ -88,7 +93,6 @@ function renderMessages() {
     const hasAudio = !!msg.audio_url;
     const hasText = msg.message && msg.message.trim().length > 0;
 
-    // badge unread - cek apakah ada VN, text, atau keduanya
     let unreadLabel = '✦ NEW MESSAGE RECEIVED';
     if (!isRead) {
       if (msg.type === 'voice') unreadLabel = '🎙 VOICE NOTE RECEIVED';
@@ -99,7 +103,6 @@ function renderMessages() {
       ? `<div class="new-message-badge mono">${unreadLabel}</div><div class="text-sm italic" style="color:var(--accent);opacity:0.9;">Klik untuk membaca & mendengarkan</div>`
       : '';
 
-    // content: text + audio player
     const audioPlayerHtml = hasAudio
       ? `<div class="msg-audio-player" onclick="event.stopPropagation()">
           <div class="msg-audio-icon">
@@ -124,8 +127,8 @@ function renderMessages() {
     const contentHtml = isRead ? `${textHtml}${audioPlayerHtml}` : '';
 
     const clickAttr = !isRead
-      ? `onclick="handleMessageClick(this, '${msgId}', \`${escapeJsString(msg.message || '')}\`, ${hasAudio})"`
-      : `onclick="openViewer(\`${escapeJsString(msg.message || '')}\`, '${msg.audio_url || ''}')"`;
+      ? `onclick="handleMessageClick(this, '${msgId}', '${escapeJsString(msg.message || '')}', ${hasAudio})"`
+      : `onclick="openViewer('${escapeJsString(msg.message || '')}', '${msg.audio_url || ''}')"`;
 
     return `<div class="msg-card ${unreadClass} mb-3" data-msg-id="${msgId}" ${clickAttr}>
               ${previewHtml}
@@ -141,11 +144,10 @@ function renderMessages() {
   }).join("");
 }
 
-// Audio player helpers untuk msg card
+// Audio helpers
 function toggleMsgAudio(audioId, btn) {
   const audio = document.getElementById(audioId);
   if (!audio) return;
-  // pause semua audio lain
   document.querySelectorAll('audio').forEach(a => { if (a.id !== audioId && !a.paused) { a.pause(); const ob = document.querySelector(`[onclick*="${a.id}"]`); if(ob) resetPlayIcon(ob); }});
   if (audio.paused) {
     audio.play();
@@ -184,7 +186,6 @@ function formatAudioTime(secs) {
   return `${m}:${s.toString().padStart(2,'0')}`;
 }
 
-// Handler klik pesan: tandai sudah dibaca, reveal konten inline + buka viewer
 function handleMessageClick(cardElement, msgId, rawMessage, hasAudio) {
   const username = state.session.username;
   const isRead = isMessageRead(username, msgId);
@@ -198,7 +199,6 @@ function handleMessageClick(cardElement, msgId, rawMessage, hasAudio) {
     if (italicText) italicText.remove();
     const contentDiv = cardElement.querySelector('.msg-content');
     if (contentDiv) {
-      // find the msg data by msgId
       const msg = state.messages.find(m => generateMessageId(m) === msgId);
       let inner = '';
       if (msg && msg.message) inner += `<p class="text-sm mb-3" style="color:var(--text);line-height:1.7;">${escapeHtml(msg.message)}</p>`;
@@ -223,15 +223,17 @@ function handleMessageClick(cardElement, msgId, rawMessage, hasAudio) {
       contentDiv.style.display = 'block';
     }
   }
-  openViewer(rawMessage);
+  const msgData = state.messages.find(m => generateMessageId(m) === msgId);
+  openViewer(rawMessage, msgData?.audio_url || '');
 }
 
 function openViewer(text, audioUrl) {
   const viewer = document.getElementById('msg-viewer');
   const viewerMsgDiv = document.getElementById('viewer-msg');
   if (!viewer || !viewerMsgDiv) return;
+
   let content = '';
-  if (text && text.trim()) content += `<p style="line-height:1.65;font-size:16px;">${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+  if (text && text.trim()) content += `<p style="line-height:1.65;font-size:16px;">${escapeHtml(text)}</p>`;
   if (audioUrl) {
     content += `<div class="msg-audio-player" style="margin-top:${text ? '16px' : '0'};" onclick="event.stopPropagation()">
       <div class="msg-audio-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
@@ -249,18 +251,21 @@ function openViewer(text, audioUrl) {
       </audio>
     </div>`;
   }
+
   viewerMsgDiv.innerHTML = content;
   viewer.style.display = 'block';
-  requestAnimationFrame(() => viewer.classList.add('show'));
+  viewer.style.pointerEvents = 'auto';
+  void viewer.offsetHeight;
+  viewer.classList.add('show');
   document.body.style.overflow = 'hidden';
 }
 function closeViewer() {
   const viewer = document.getElementById('msg-viewer');
   if (!viewer) return;
-  // pause viewer audio kalau ada
   const va = document.getElementById('viewer-audio');
   if (va) { va.pause(); va.currentTime = 0; }
   viewer.classList.remove('show');
+  viewer.style.pointerEvents = 'none';
   setTimeout(() => { viewer.style.display = 'none'; }, 250);
   document.body.style.overflow = '';
 }
@@ -406,7 +411,7 @@ function shareLink() {
 }
 
 /* ============================
-   SEND PAGE (dengan Turnstile)
+   SEND PAGE
    ============================ */
 async function initSendPage(slug) {
   try {
@@ -434,13 +439,9 @@ async function doSend() {
 
   try {
     let audio_url = null;
-
-    // upload VN ke Supabase dulu kalau ada
     if (hasVoice) {
       toast("Mengupload voice note...");
-      const slug = state.currentSlug;
-      // ambil username penerima dari profile (sudah di-fetch sebelumnya)
-      const recipient = state.sendPageRecipient || slug;
+      const recipient = state.sendPageRecipient || state.currentSlug;
       const formData = new FormData();
       formData.append("audio", state.vnBlob, "voice.webm");
       formData.append("recipient", recipient);
@@ -491,27 +492,29 @@ function updateCharCount() {
    DANGER ZONE MODALS
    ============================ */
 function showClearMessagesModal() {
-  const backdrop = document.getElementById("modal-backdrop"), modal = document.getElementById("modal-clear");
-  backdrop.style.display = "block"; modal.style.display = "block";
-  setTimeout(() => { backdrop.classList.add("show"); modal.classList.add("show"); }, 10);
+  const bd = document.getElementById("modal-backdrop");
+  const m = document.getElementById("modal-clear");
+  bd.style.display = "block"; bd.style.pointerEvents = "auto";
+  m.style.display = "block"; m.style.pointerEvents = "auto";
 }
+
 function showDeleteAccountModal() {
   document.getElementById("delete-confirm-pw").value = "";
-  const backdrop = document.getElementById("modal-backdrop"), modal = document.getElementById("modal-delete");
-  backdrop.style.display = "block"; modal.style.display = "block";
-  setTimeout(() => { backdrop.classList.add("show"); modal.classList.add("show"); }, 10);
+  const bd = document.getElementById("modal-backdrop");
+  const m = document.getElementById("modal-delete");
+  bd.style.display = "block"; bd.style.pointerEvents = "auto";
+  m.style.display = "block"; m.style.pointerEvents = "auto";
 }
+
 function closeModal() {
-  const backdrop = document.getElementById("modal-backdrop"), clearModal = document.getElementById("modal-clear"), deleteModal = document.getElementById("modal-delete");
-  backdrop.classList.remove("show");
-  if (clearModal) clearModal.classList.remove("show");
-  if (deleteModal) deleteModal.classList.remove("show");
-  setTimeout(() => {
-    backdrop.style.display = "none";
-    if (clearModal) clearModal.style.display = "none";
-    if (deleteModal) deleteModal.style.display = "none";
-  }, 200);
+  const bd = document.getElementById("modal-backdrop");
+  const mc = document.getElementById("modal-clear");
+  const md = document.getElementById("modal-delete");
+  bd.style.display = "none"; bd.style.pointerEvents = "none";
+  mc.style.display = "none"; mc.style.pointerEvents = "none";
+  md.style.display = "none"; md.style.pointerEvents = "none";
 }
+
 async function doClearMessages() {
   if (!state.session) return;
   const btn = document.getElementById("btn-clear-confirm");
@@ -528,6 +531,7 @@ async function doClearMessages() {
     if (document.getElementById("dash-pesan").style.display !== "none") loadMessages();
   } catch(e) { toast("Koneksi bermasalah", "error"); } finally { setLoading(btn, false); }
 }
+
 async function doDeleteAccount() {
   if (!state.session) return;
   const password = document.getElementById("delete-confirm-pw").value;
@@ -549,11 +553,9 @@ async function doDeleteAccount() {
   } catch(e) { toast("Koneksi bermasalah", "error"); } finally { setLoading(btn, false); }
 }
 
-
 /* ============================
    VOICE NOTE RECORDER
    ============================ */
-// state rekaman
 state.vnBlob = null;
 state.vnMediaRecorder = null;
 state.vnChunks = [];
@@ -575,7 +577,6 @@ async function startRecording() {
     state.vnChunks = [];
     state.vnSeconds = 0;
 
-    // pilih format yang didukung
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
@@ -591,17 +592,15 @@ async function startRecording() {
 
     state.vnMediaRecorder.start(100);
 
-    // UI: recording state
     document.getElementById('vn-idle').style.display = 'none';
     document.getElementById('vn-recording').style.display = 'flex';
     document.getElementById('vn-preview-wrap').style.display = 'none';
     document.getElementById('vn-cancel-btn').style.display = 'block';
 
-    // timer
     updateVnTimer();
     state.vnTimerInterval = setInterval(() => {
       state.vnSeconds++;
-      if (state.vnSeconds >= 120) stopRecording(); // max 2 menit
+      if (state.vnSeconds >= 120) stopRecording();
       updateVnTimer();
     }, 1000);
 
@@ -629,7 +628,6 @@ function showVnPreview() {
   document.getElementById('vn-recording').style.display = 'none';
   document.getElementById('vn-preview-wrap').style.display = 'block';
 
-  // setup preview audio
   if (state.vnPreviewAudio) { state.vnPreviewAudio.pause(); state.vnPreviewAudio = null; }
   const url = URL.createObjectURL(state.vnBlob);
   state.vnPreviewAudio = new Audio(url);
@@ -675,7 +673,6 @@ function reRecord() {
 }
 
 function cancelRecording() {
-  // stop kalau masih recording
   clearInterval(state.vnTimerInterval);
   if (state.vnMediaRecorder && state.vnMediaRecorder.state !== 'inactive') {
     state.vnMediaRecorder.stop();
@@ -685,7 +682,6 @@ function cancelRecording() {
   state.vnChunks = [];
   state.vnSeconds = 0;
 
-  // reset UI ke idle
   const idleEl = document.getElementById('vn-idle');
   const recEl = document.getElementById('vn-recording');
   const prevEl = document.getElementById('vn-preview-wrap');
