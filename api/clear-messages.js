@@ -1,4 +1,3 @@
-// /api/clear-messages.js
 const { Redis } = require("@upstash/redis");
 const { createClient } = require("@supabase/supabase-js");
 
@@ -9,19 +8,15 @@ const redis = new Redis({
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rYW5kcWZ3aGdmYXVtZ214cmNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjc3MjIsImV4cCI6MjA5MDk0MzcyMn0.f33zDpE5PRpxclPYDkh7W_drwdzbIs9QuvfSU3yz9CI"
+  process.env.SUPABASE_ANON_KEY
 );
 
-// Helper: extract path from Supabase URL
 function extractStoragePath(url) {
   try {
     const u = new URL(url);
-    // Format: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
-    const parts = u.pathname.split('/');
-    const bucketIndex = parts.indexOf('public') + 1;
-    if (bucketIndex > 0 && parts[bucketIndex]) {
-      return parts.slice(bucketIndex + 1).join('/');
-    }
+    const marker = '/voice-notes/';
+    const idx = u.pathname.indexOf(marker);
+    if (idx !== -1) return u.pathname.slice(idx + marker.length);
     return null;
   } catch {
     return null;
@@ -40,23 +35,24 @@ module.exports = async (req, res) => {
   if (!username) return res.status(400).json({ error: "Username wajib diisi" });
 
   const key = `messages:${username.toLowerCase()}`;
-  const messages = await redis.get(key);
-  let audioPaths = [];
 
-  if (messages && Array.isArray(messages)) {
-    for (const msg of messages) {
+  // pakai lrange bukan get — pesan disimpan sebagai Redis List
+  const rawMessages = await redis.lrange(key, 0, -1);
+
+  const audioPaths = [];
+  for (const item of rawMessages) {
+    try {
+      const msg = typeof item === "string" ? JSON.parse(item) : item;
       if (msg.audio_url) {
         const path = extractStoragePath(msg.audio_url);
         if (path) audioPaths.push(path);
       }
-    }
+    } catch (_) {}
   }
 
-  // Hapus file dari Supabase Storage
+  // Hapus file audio dari Supabase Storage
   if (audioPaths.length > 0) {
-    const { error } = await supabase.storage
-      .from('voice-notes') // ganti dengan nama bucket Anda
-      .remove(audioPaths);
+    const { error } = await supabase.storage.from("voice-notes").remove(audioPaths);
     if (error) console.error("Gagal hapus file audio:", error);
   }
 
