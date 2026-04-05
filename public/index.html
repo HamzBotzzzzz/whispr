@@ -4,57 +4,1476 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>whispr — pesan anonim</title>
-  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Turnstile script -->
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <style>
+    /* ----- VARIABLES ----- */
+    :root {
+      --bg: #f8f8fa;
+      --surface: #ffffff;
+      --surface2: #f1f1f4;
+      --border: #e4e4e9;
+      --text: #1a1a1c;
+      --muted: #6c6c72;
+      --accent: #c8f135;
+      --accent-dim: #b0d42e;
+      --danger: #ff4545;
+      --unread-glow: rgba(0,0,0,0.03);
+    }
+
+    /* ----- RESET & BASE ----- */
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+    }
+    .mono { font-family: 'DM Mono', monospace; }
+
+    /* noise overlay (ringan biar tetap modern) */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.2;
+    }
+
+    /* ----- PAGE TRANSITIONS ----- */
+    .page {
+      display: none;
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+      transition: opacity 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1), transform 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    }
+    .page.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* ----- TAB CONTENT ----- */
+    .tab-content {
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      opacity: 0;
+      transform: translateX(8px);
+    }
+    .tab-content.active {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* ----- FORM ELEMENTS ----- */
+    .inp {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      outline: none;
+      border-radius: 6px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .inp:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(200,241,53,0.2); }
+    .inp::placeholder { color: var(--muted); }
+
+    /* ----- BUTTONS ----- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+      border-radius: 6px;
+      letter-spacing: 0.02em;
+    }
+    .btn-accent {
+      background: var(--accent);
+      color: #0a0a0a;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .btn-accent:hover { background: var(--accent-dim); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+    .btn-accent:active { transform: translateY(1px); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { border-color: var(--text); color: var(--text); transform: translateY(-1px); background: rgba(0,0,0,0.02); }
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+    .btn-danger:hover { background: var(--danger); color: white; transform: translateY(-1px); }
+
+    /* ----- NAVIGATION ----- */
+    .nav-link {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(0,0,0,0.03); }
+    .nav-link.active {
+  color: var(--text); /* Ubah dari ijo ke teks biasa/hitam */
+  background: var(--surface2); 
+  /* Efek lubang/shadow ke dalam */
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.08), 
+              inset -1px -1px 2px rgba(255, 255, 255, 0.8);
+}
+
+    /* ----- MESSAGE CARDS (UNREAD / READ) ----- */
+    .msg-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+      cursor: pointer;
+      animation: fadeUp 0.35s ease forwards;
+      opacity: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .msg-card.unread {
+      border-left: 3px solid var(--accent);
+      background: #ffffff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .msg-card.unread .new-message-badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #0a0a0a;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .msg-card.read {
+      opacity: 0.92;
+      border-left-color: transparent;
+    }
+    .msg-card:hover {
+      transform: translateY(-4px);
+      border-color: #cdcdd4;
+      box-shadow: 0 12px 22px rgba(0,0,0,0.08);
+    }
+    .msg-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      padding: 1px;
+      background: linear-gradient(120deg, transparent, rgba(200,241,53,0.3), transparent);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s;
+    }
+    .msg-card:hover::before { opacity: 1; }
+
+    /* ----- OTHER COMPONENTS ----- */
+    .link-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .link-box:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,0.05); }
+
+    /* TOAST */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: 'DM Mono', monospace;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      max-width: 320px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: var(--accent); color: #0a0a0a; }
+    #toast.error { background: var(--danger); color: white; }
+
+    .send-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 480px;
+      width: 100%;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+    }
+    .send-card:hover { box-shadow: 0 20px 30px -8px rgba(0,0,0,0.1); }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: -0.03em;
+      color: var(--accent);
+    }
+    .logo span { color: var(--muted); font-weight: 400; }
+    .dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 20px;
+      color: var(--muted);
+      text-align: center;
+      animation: fadeUp 0.4s ease;
+    }
+
+    .spin {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,0.1);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    textarea.inp { resize: none; line-height: 1.6; }
+    .char-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; transition: color 0.2s; }
+    .char-count.warn { color: #f97316; }
+    .char-count.danger { color: var(--danger); }
+
+    .tab-bar { display: flex; border-bottom: 1px solid var(--border); gap: 0; }
+    .tab {
+      padding: 12px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); background: rgba(0,0,0,0.02); }
+    .tab.active {
+  color: var(--text);
+  border-bottom-color: transparent; /* Hilangkan garis bawah ijo */
+  background: var(--surface2);
+  box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.08);
+  border-radius: 6px; /* Agar lekukan lubangnya rapi */
+}
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      background: var(--accent);
+      color: #0a0a0a;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.35s ease forwards; }
+
+    /* ----- FULLSCREEN VIEWER MODAL ----- */
+    #msg-viewer {
+      opacity: 0;
+      transform: scale(0.96);
+      transition: opacity 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+      backdrop-filter: blur(24px);
+      background: rgba(255,255,255,0.92);
+      will-change: transform, opacity;
+    }
+    #msg-viewer.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* modal backdrop */
+    #modal-backdrop {
+      transition: opacity 0.25s ease;
+      opacity: 0;
+    }
+    #modal-backdrop.show { opacity: 1; }
+    .modal-container {
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    .modal-container.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .scroll-top {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 40px;
+      padding: 10px 14px;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.25s;
+      pointer-events: none;
+      z-index: 90;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .scroll-top.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .scroll-top:hover {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+.logo-glow {
+  position: relative;
+  display: inline-block;
+
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  overflow: hidden;
+}
+
+/* layer shimmer */
+.logo-glow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255,255,255,0.8) 50%,
+    transparent 100%
+  );
+
+  transform: skewX(-20deg);
+  animation: shimmer 2.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -150%;
+  }
+  100% {
+    left: 200%;
+  }
+}
+
+/* Animasi Kilatan Cahaya */
+@keyframes shimmer-sweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-logo {
+  /* Dasar warna ijo lu */
+  color: var(--accent);
+  /* Kita timpa pake gradasi: Ijo - Putih - Ijo */
+  background: linear-gradient(
+    120deg, 
+    var(--accent) 30%, 
+    rgba(255, 255, 255, 0.8) 50%, 
+    var(--accent) 70%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-sweep 2.5s infinite linear;
+  
+  /* Efek glow halus di belakang teks */
+  text-shadow: 0 0 8px rgba(200, 241, 53, 0.2);
+  display: inline-block;
+}
+
+/* Biar titik (.) nya tetep ijo/muted tapi ga ikut ilang */
+.shimmer-logo span {
+  -webkit-text-fill-color: var(--muted);
+}
+
+
+
+    /* ----- VOICE RECORDER ----- */
+    .vn-recorder {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      background: var(--surface2);
+      margin-bottom: 12px;
+    }
+    .vn-btn-record {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      border: none;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .vn-btn-record:hover { border-color: var(--danger); }
+    .vn-btn-record.recording {
+      background: var(--danger);
+      border-color: var(--danger);
+      animation: pulse-rec 1.2s ease infinite;
+    }
+    @keyframes pulse-rec {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,69,69,0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(255,69,69,0); }
+    }
+    .vn-timer {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: var(--muted);
+      min-width: 36px;
+    }
+    .vn-timer.active { color: var(--danger); }
+
+    /* Mini audio player di send page */
+    .vn-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 10px;
+    }
+    .vn-play-btn {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: var(--text);
+      color: var(--surface);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .vn-play-btn:hover { background: var(--accent); color: #0a0a0a; }
+    .vn-progress-wrap {
+      flex: 1;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+    .vn-progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    .vn-duration {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    /* Audio player di msg card */
+    .msg-audio-player {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 10px;
+    }
+    .msg-play-btn {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: none;
+      background: var(--text);
+      color: var(--surface);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .msg-play-btn:hover { background: var(--accent); color: #0a0a0a; }
+    .msg-audio-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(200,241,53,0.12);
+      flex-shrink: 0;
+    }
+  </style>
 </head>
 <body>
 
-<!-- GLOBAL ELEMENTS (selalu ada) -->
+<!-- TOAST -->
 <div id="toast"></div>
-<div class="scroll-top" id="scroll-top">
+<div class="scroll-top" id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
 </div>
 
-<!-- MODAL VIEWER PESAN (Teks + Audio) -->
-<div id="msg-viewer" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);">
-  <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);">
-    <div class="mono text-xs" style="color:var(--muted);">whispr — pesan anonim</div>
-    <button onclick="closeViewer()" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;">Tutup</button>
-  </div>
-  <div class="min-h-[calc(100vh-56px)] flex flex-col items-center justify-center px-4">
-    <div class="flex flex-col items-center mb-6">
-      <div style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">?</div>
-      <div class="mono text-xs mt-2" style="color:var(--muted);">anonymous</div>
+<!-- ==================== AUTH PAGE ==================== -->
+<div id="page-auth" class="page active">
+  <div class="min-h-screen flex flex-col items-center justify-center px-4">
+    <div class="mb-12 text-center" style="animation: fadeUp 0.5s ease;">
+      <div class="logo logo-glow">whispr<span>.</span></div>
+      <p class="text-sm mono" style="color:var(--muted);">kirim pesan anonim ke siapapun</p>
     </div>
-    <div id="viewer-msg" style="width:380px;max-width:90%;background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;text-align:center;line-height:1.65;font-size:16px;box-shadow:0 12px 28px rgba(0,0,0,0.08);"></div>
-    <div class="mt-8 text-center"><a href="https://instagram.com/hamzz_jr" target="_blank" rel="noopener noreferrer" style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px dashed var(--border);">reveal sender</a></div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:36px;width:100%;max-width:400px;box-shadow:0 8px 20px rgba(0,0,0,0.04);">
+      <div class="tab-bar mb-6">
+        <div class="tab active" id="tab-login" onclick="switchAuthTab('login')">Masuk</div>
+        <div class="tab" id="tab-register" onclick="switchAuthTab('register')">Daftar</div>
+      </div>
+      <div id="form-login">
+        <div class="flex flex-col gap-4">
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Username</label><input id="login-username" class="inp" type="text" placeholder="username kamu" /></div>
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Password</label><input id="login-password" class="inp" type="password" placeholder="••••••" /></div>
+          <button class="btn btn-accent w-full mt-2" id="btn-login" onclick="doLogin()">Masuk</button>
+        </div>
+      </div>
+      <div id="form-register" style="display:none;">
+        <div class="flex flex-col gap-4">
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Username</label><input id="reg-username" class="inp" type="text" placeholder="pilih username unik" /></div>
+          <div><label class="block text-xs mono mb-2" style="color:var(--muted);">Password</label><input id="reg-password" class="inp" type="password" placeholder="min. 6 karakter" /></div>
+          <button class="btn btn-accent w-full mt-2" id="btn-register" onclick="doRegister()">Buat Akun</button>
+        </div>
+      </div>
+    </div>
+    <p class="text-xs mono mt-6" style="color:var(--muted);">anonim. no tracking. no bs.</p>
   </div>
 </div>
 
-<!-- MODAL BACKDROP & DANGER ZONE MODALS -->
+<!-- ==================== DASHBOARD PAGE ==================== -->
+<div id="page-dashboard" class="page">
+  <nav style="border-bottom:1px solid var(--border);background:rgba(255,255,255,0.96);backdrop-filter:blur(12px);" class="sticky top-0 z-50">
+    <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div class="logo shimmer-logo">whispr<span>.</span></div>
+      <div class="flex items-center gap-2">
+        <span id="nav-username" class="text-xs mono px-3 py-1 rounded" style="color:var(--muted);background:var(--surface2);">@—</span>
+        <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px;" onclick="doLogout()">Keluar</button>
+      </div>
+    </div>
+  </nav>
+  <div class="max-w-3xl mx-auto px-4 py-8">
+    <div class="flex gap-2 mb-8">
+      <button class="nav-link active" id="dash-nav-home" onclick="showDashTab('home')">Home</button>
+      <button class="nav-link" id="dash-nav-pesan" onclick="showDashTab('pesan')">Pesan <span id="msg-badge" class="badge" style="display:none;">0</span></button>
+    </div>
+
+    <!-- HOME TAB -->
+    <div id="dash-home" class="tab-content active">
+      <div class="mb-2 text-xs mono uppercase" style="color:var(--muted);">Link anonim kamu</div>
+      <div class="link-box mb-4" id="link-display">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent);flex-shrink:0"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        <span id="link-text" class="mono text-sm flex-1" style="color:var(--text);word-break:break-all;"></span>
+        <button onclick="copyLink()" class="text-xs mono px-3 py-1 rounded transition-colors" style="color:var(--accent);background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.3);flex-shrink:0;" id="copy-btn">Salin</button>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:20px;" class="mb-6">
+        <p class="text-sm mb-3" style="color:var(--muted);">Bagikan link ini ke siapapun. Mereka bisa kirim pesan anonim ke kamu tanpa perlu akun.</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px;" onclick="shareLink()">Share</button>
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:12px;" onclick="showDashTab('pesan')">Lihat Pesan Masuk →</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mb-8">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+  <div class="text-xs mono mb-1" style="color:var(--muted);">Pesan Masuk</div>
+  <div class="text-3xl font-bold" style="color:var(--text);" id="stat-total">—</div>
+</div>
+
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;box-shadow:0 1px 2px rgba(0,0,0,0.02);"><div class="text-xs mono mb-1" style="color:var(--muted);">Username</div><div class="text-lg font-bold mono truncate" id="stat-username">—</div></div>
+      </div>
+      <div style="border:1px solid #ffd4d4;border-radius:8px;padding:20px;background: #fff9f9;">
+        <div class="text-xs mono mb-4" style="color:var(--danger);text-transform:uppercase;">⚠ Danger Zone</div>
+        <div class="flex flex-col gap-3">
+          <div style="background:#fef2f2;border-radius:6px;padding:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid #ffe0e0;">
+            <div><div class="text-sm font-semibold mb-1">Hapus semua pesan</div><div class="text-xs mono" style="color:var(--muted);">Semua pesan masuk akan dihapus permanen</div></div>
+            <button class="btn btn-danger" style="padding:8px 16px;font-size:12px;" onclick="showClearMessagesModal()">Hapus Pesan</button>
+          </div>
+          <div style="background:#fef2f2;border-radius:6px;padding:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid #ffe0e0;">
+            <div><div class="text-sm font-semibold mb-1">Hapus akun</div><div class="text-xs mono" style="color:var(--muted);">Akun, link, dan semua pesan dihapus permanen.</div></div>
+            <button class="btn btn-danger" style="padding:8px 16px;font-size:12px;" onclick="showDeleteAccountModal()">Hapus Akun</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESAN TAB (INBOX) -->
+    <div id="dash-pesan" class="tab-content" style="display:none;">
+      <div class="flex items-center justify-between mb-6"><div class="text-xs mono uppercase" style="color:var(--muted);">Pesan masuk</div><button onclick="loadMessages()" class="text-xs mono px-3 py-1 rounded" style="color:var(--muted);border:1px solid var(--border);">↻ Refresh</button></div>
+      <div id="messages-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SEND PAGE (sudah ditambah Turnstile) ==================== -->
+<div id="page-send" class="page">
+  <div class="min-h-screen flex flex-col items-center justify-center px-4">
+    <div class="send-card w-full">
+      <div class="logo mb-1">whispr<span>.</span></div>
+      <p class="text-xs mono mb-8" style="color:var(--muted);">platform pesan anonim</p>
+      <div id="send-profile" class="mb-6"><div class="flex items-center gap-3 mb-1"><div class="dot"></div><span class="text-xs mono uppercase" style="color:var(--muted);">Kirim pesan anonim ke</span></div><div class="text-2xl font-bold" id="send-username">loading...</div></div>
+      <div id="send-form-wrap">
+        <!-- TEXT INPUT -->
+        <div class="mb-4">
+          <textarea id="send-msg" class="inp" rows="4" placeholder="tulis pesan anonim kamu di sini... (opsional)" maxlength="500" oninput="updateCharCount()"></textarea>
+          <div class="flex justify-between items-center mt-2">
+            <span class="text-xs mono" style="color:var(--muted);">pesan ini 100% anonim</span>
+            <span class="char-count" id="char-count">0 / 500</span>
+          </div>
+        </div>
+
+        <!-- VOICE NOTE RECORDER -->
+        <div class="vn-recorder mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs mono uppercase" style="color:var(--muted);letter-spacing:0.06em;">Voice Note <span style="opacity:0.5;">(opsional)</span></span>
+            <button id="vn-cancel-btn" onclick="cancelRecording()" style="display:none;font-size:11px;font-family:'DM Mono',monospace;color:var(--danger);background:none;border:none;cursor:pointer;">✕ Hapus</button>
+          </div>
+
+          <!-- State: idle -->
+          <div id="vn-idle" class="flex items-center gap-3">
+            <button class="vn-btn-record" id="vn-record-btn" onclick="toggleRecording()" title="Mulai rekam">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+            </button>
+            <span class="text-xs mono" style="color:var(--muted);">Tap untuk merekam suara</span>
+          </div>
+
+          <!-- State: recording -->
+          <div id="vn-recording" style="display:none;" class="flex items-center gap-3">
+            <button class="vn-btn-record recording" onclick="toggleRecording()" title="Stop">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+            <span class="vn-timer active" id="vn-timer">0:00</span>
+            <span class="text-xs mono" style="color:var(--danger);">Sedang merekam...</span>
+          </div>
+
+          <!-- State: preview -->
+          <div id="vn-preview-wrap" style="display:none;">
+            <div class="vn-preview">
+              <button class="vn-play-btn" id="vn-play-btn" onclick="togglePreviewPlay()">
+                <svg id="vn-play-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+              </button>
+              <div class="vn-progress-wrap" onclick="seekPreview(event)">
+                <div class="vn-progress-bar" id="vn-progress-bar"></div>
+              </div>
+              <span class="vn-duration" id="vn-duration">0:00</span>
+            </div>
+            <button onclick="reRecord()" class="text-xs mono mt-2" style="color:var(--muted);background:none;border:none;cursor:pointer;padding:4px 0;">↺ Rekam ulang</button>
+          </div>
+        </div>
+
+        <!-- CAPTCHA -->
+        <div id="captcha-widget" class="cf-turnstile mb-4" data-sitekey="0x4AAAAAAC0YXHNQTSABLJy_" data-theme="light"></div>
+        <button class="btn btn-accent w-full" id="btn-send" onclick="doSend()">Kirim Anonim →</button>
+      </div>
+      <div id="send-success" style="display:none;" class="text-center py-4 fade-up"><div class="text-4xl mb-4">✦</div><div class="font-bold mb-2">Pesan terkirim!</div><p class="text-sm mono" style="color:var(--muted);">Pesanmu sudah sampai. Mereka tidak tahu kamu siapa.</p><button class="btn btn-ghost mt-6" onclick="resetSendForm()">Kirim lagi</button></div>
+    </div>
+    <p class="text-xs mono mt-6" style="color:var(--muted);">ingin punya link sendiri? <span onclick="window.location.href='/'"
+      style="color:#000;cursor:pointer;text-decoration:underline;">
+  daftar gratis
+</span>
+</div>
+
+<!-- ==================== 404 PAGE ==================== -->
+<div id="page-404" class="page"><div class="min-h-screen flex flex-col items-center justify-center text-center px-4"><div class="text-6xl font-black mb-4" style="color:var(--border);">404</div><div class="text-xl font-bold mb-2">Link tidak ditemukan</div><p class="text-sm mono mb-8" style="color:var(--muted);">Sepertinya link ini tidak valid atau sudah dihapus.</p><button class="btn btn-accent" onclick="window.location.href='/'">Ke Beranda</button></div></div>
+
+<!-- ==================== FULLSCREEN MESSAGE VIEWER ==================== -->
+<div id="msg-viewer" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(255,255,255,0.96);backdrop-filter:blur(20px);">
+  <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border);"><div class="mono text-xs" style="color:var(--muted);">whispr — ilhamm</div><button onclick="closeViewer()" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;">Tutup</button></div>
+  <div class="min-h-[calc(100vh-56px)] flex flex-col items-center justify-center px-4"><div class="flex flex-col items-center mb-6"><div style="width:64px;height:64px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">?</div><div class="mono text-xs mt-2" style="color:var(--muted);">anonymous</div></div><div id="viewer-msg" style="width:380px;max-width:90%;background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:32px 28px;text-align:center;line-height:1.65;font-size:16px;box-shadow:0 12px 28px rgba(0,0,0,0.08);"></div><div class="mt-8 text-center"><a href="https://instagram.com/hamzz_jr" target="_blank" rel="noopener noreferrer" style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace;border-bottom:1px dashed var(--border);">reveal sender</a></div></div>
+</div>
+
+<!-- ==================== MODALS FOR DANGER ZONE ==================== -->
 <div id="modal-backdrop" onclick="closeModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.2);backdrop-filter:blur(4px);z-index:100;"></div>
-<div id="modal-clear" class="modal-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:101;width:90%;max-width:400px;">
-  <div style="background:var(--surface);border:1px solid #ffd4d4;border-radius:12px;padding:28px;box-shadow:0 20px 30px rgba(0,0,0,0.1);">
-    <div class="text-lg font-bold mb-2">Hapus semua pesan?</div>
-    <p class="text-sm mono mb-6" style="color:var(--muted);">Semua pesan masuk akan dihapus permanen. Tidak bisa dibatalkan.</p>
-    <div class="flex gap-3"><button class="btn btn-ghost flex-1" onclick="closeModal()">Batal</button><button class="btn btn-danger flex-1" id="btn-clear-confirm">Ya, Hapus</button></div>
-  </div>
-</div>
-<div id="modal-delete" class="modal-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:101;width:90%;max-width:400px;">
-  <div style="background:var(--surface);border:1px solid #ffd4d4;border-radius:12px;padding:28px;box-shadow:0 20px 30px rgba(0,0,0,0.1);">
-    <div class="text-lg font-bold mb-2">Hapus akun permanen?</div>
-    <p class="text-sm mono mb-4" style="color:var(--muted);">Akun, link, dan semua pesan akan dihapus selamanya. Masukkan password untuk konfirmasi.</p>
-    <input id="delete-confirm-pw" class="inp mb-4" type="password" placeholder="Password kamu" />
-    <div class="flex gap-3"><button class="btn btn-ghost flex-1" onclick="closeModal()">Batal</button><button class="btn btn-danger flex-1" id="btn-delete-confirm">Hapus Akun</button></div>
-  </div>
-</div>
+<div id="modal-clear" class="modal-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:101;width:90%;max-width:400px;"><div style="background:var(--surface);border:1px solid #ffd4d4;border-radius:12px;padding:28px;box-shadow:0 20px 30px rgba(0,0,0,0.1);"><div class="text-lg font-bold mb-2">Hapus semua pesan?</div><p class="text-sm mono mb-6" style="color:var(--muted);">Semua pesan masuk akan dihapus permanen. Tidak bisa dibatalkan.</p><div class="flex gap-3"><button class="btn btn-ghost flex-1" onclick="closeModal()">Batal</button><button class="btn btn-danger flex-1" id="btn-clear-confirm" onclick="doClearMessages()">Ya, Hapus</button></div></div></div>
+<div id="modal-delete" class="modal-container" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:101;width:90%;max-width:400px;"><div style="background:var(--surface);border:1px solid #ffd4d4;border-radius:12px;padding:28px;box-shadow:0 20px 30px rgba(0,0,0,0.1);"><div class="text-lg font-bold mb-2">Hapus akun permanen?</div><p class="text-sm mono mb-4" style="color:var(--muted);">Akun, link, dan semua pesan akan dihapus selamanya. Masukkan password untuk konfirmasi.</p><input id="delete-confirm-pw" class="inp mb-4" type="password" placeholder="Password kamu" /><div class="flex gap-3"><button class="btn btn-ghost flex-1" onclick="closeModal()">Batal</button><button class="btn btn-danger flex-1" id="btn-delete-confirm" onclick="doDeleteAccount()">Hapus Akun</button></div></div></div>
 
-<!-- TEMPAT KONTEN DINAMIS -->
-<div id="app-root"></div>
+<script>
+/* ============================
+   GLOBAL STATE & UTILITIES
+   ============================ */
+const state = {
+  session: null,      // { username, slug }
+  currentSlug: null,
+  messages: []
+};
 
-<script src="script.js"></script>
+// Generate ID unik untuk pesan (hash sederhana)
+function generateMessageId(msg) {
+  const raw = `${msg.message}|${msg.sentAt}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+    hash |= 0;
+  }
+  return `msg_${Math.abs(hash)}`;
+}
+
+// Fungsi untuk menyimpan & membaca status baca (localStorage per user)
+function getReadStorageKey(username) { return `whispr_read_${username}`; }
+function getReadIds(username) {
+  const stored = localStorage.getItem(getReadStorageKey(username));
+  return stored ? JSON.parse(stored) : [];
+}
+function saveReadId(username, msgId) {
+  const current = getReadIds(username);
+  if (!current.includes(msgId)) {
+    current.push(msgId);
+    localStorage.setItem(getReadStorageKey(username), JSON.stringify(current));
+  }
+}
+function isMessageRead(username, msgId) {
+  return getReadIds(username).includes(msgId);
+}
+
+// Helper untuk escape
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/\n/g, "<br>");
+}
+function escapeJsString(str) {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+}
+function formatTime(ts) {
+  const d = new Date(ts), now = new Date(), diff = now - d;
+  const mins = Math.floor(diff / 60000), hours = Math.floor(diff / 3600000), days = Math.floor(diff / 86400000);
+  if (mins < 1) return "baru saja";
+  if (mins < 60) return `${mins} menit lalu`;
+  if (hours < 24) return `${hours} jam lalu`;
+  if (days < 7) return `${days} hari lalu`;
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+}
+function setLoading(btn, loading) {
+  if (loading) {
+    btn.dataset.origText = btn.innerHTML;
+    btn.innerHTML = `<span class="spin"></span>`;
+    btn.disabled = true;
+  } else {
+    btn.innerHTML = btn.dataset.origText || btn.innerHTML;
+    btn.disabled = false;
+  }
+}
+function toast(msg, type = "success") {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(window.toastTimer);
+  window.toastTimer = setTimeout(() => el.className = el.className.replace("show", "").trim(), 3000);
+}
+
+/* ============================
+   RENDER MESSAGES (dengan status baca)
+   ============================ */
+function renderMessages() {
+  const container = document.getElementById("messages-container");
+  if (!container) return;
+  if (!state.messages.length) {
+    container.innerHTML = `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><p>Belum ada pesan masuk</p><p class="text-xs mono">bagikan linkmu untuk mulai menerima pesan</p></div>`;
+    return;
+  }
+  const username = state.session.username;
+  container.innerHTML = state.messages.map((msg, idx) => {
+    const msgId = generateMessageId(msg);
+    const isRead = isMessageRead(username, msgId);
+    const unreadClass = isRead ? 'read' : 'unread';
+    const hasAudio = !!msg.audio_url;
+    const hasText = msg.message && msg.message.trim().length > 0;
+
+    // badge unread - cek apakah ada VN, text, atau keduanya
+    let unreadLabel = '✦ NEW MESSAGE RECEIVED';
+    if (!isRead) {
+      if (msg.type === 'voice') unreadLabel = '🎙 VOICE NOTE RECEIVED';
+      else if (msg.type === 'both') unreadLabel = '🎙 VOICE NOTE + PESAN RECEIVED';
+    }
+
+    const previewHtml = !isRead
+      ? `<div class="new-message-badge mono">${unreadLabel}</div><div class="text-sm italic" style="color:var(--accent);opacity:0.9;">Klik untuk membaca & mendengarkan</div>`
+      : '';
+
+    // content: text + audio player
+    const audioPlayerHtml = hasAudio
+      ? `<div class="msg-audio-player" onclick="event.stopPropagation()">
+          <div class="msg-audio-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </div>
+          <button class="msg-play-btn" onclick="toggleMsgAudio('audio-${msgId}', this)" data-playing="false">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <div class="vn-progress-wrap" style="flex:1;" onclick="seekMsgAudio('audio-${msgId}', event)">
+            <div class="vn-progress-bar" id="prog-${msgId}"></div>
+          </div>
+          <span class="vn-duration" id="dur-${msgId}">0:00</span>
+          <audio id="audio-${msgId}" src="${msg.audio_url}" preload="metadata"
+            ontimeupdate="updateMsgProgress('${msgId}', this)"
+            onloadedmetadata="updateMsgDuration('${msgId}', this)"
+            onended="resetMsgAudio('${msgId}', document.querySelector('[onclick*=audio-${msgId}]'))">
+          </audio>
+        </div>`
+      : '';
+
+    const textHtml = hasText ? `<p class="text-sm mb-3" style="color:var(--text);line-height:1.7;">${escapeHtml(msg.message)}</p>` : '';
+    const contentHtml = isRead ? `${textHtml}${audioPlayerHtml}` : '';
+
+    const clickAttr = !isRead
+      ? `onclick="handleMessageClick(this, '${msgId}', \`${escapeJsString(msg.message || '')}\`, ${hasAudio})"`
+      : `onclick="openViewer(\`${escapeJsString(msg.message || '')}\`, '${msg.audio_url || ''}')"`;
+
+    return `<div class="msg-card ${unreadClass} mb-3" data-msg-id="${msgId}" ${clickAttr}>
+              ${previewHtml}
+              <div class="msg-content" style="${isRead ? 'display:block' : 'display:none'}">${contentHtml}</div>
+              <div class="flex items-center justify-between mt-2">
+                <span class="text-xs mono" style="color:var(--muted);">${formatTime(msg.sentAt)}</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  ${hasAudio ? '<span class="text-xs mono px-2 py-0.5 rounded" style="background:rgba(200,241,53,0.12);color:var(--accent);border:1px solid rgba(200,241,53,0.3);">🎙 vn</span>' : ''}
+                  <span class="text-xs mono px-2 py-0.5 rounded" style="background:var(--surface2);color:var(--muted);">anonim</span>
+                </div>
+              </div>
+            </div>`;
+  }).join("");
+}
+
+// Audio player helpers untuk msg card
+function toggleMsgAudio(audioId, btn) {
+  const audio = document.getElementById(audioId);
+  if (!audio) return;
+  // pause semua audio lain
+  document.querySelectorAll('audio').forEach(a => { if (a.id !== audioId && !a.paused) { a.pause(); const ob = document.querySelector(`[onclick*="${a.id}"]`); if(ob) resetPlayIcon(ob); }});
+  if (audio.paused) {
+    audio.play();
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+  } else {
+    audio.pause();
+    resetPlayIcon(btn);
+  }
+}
+function resetPlayIcon(btn) {
+  btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
+}
+function updateMsgProgress(msgId, audio) {
+  const bar = document.getElementById('prog-' + msgId);
+  const dur = document.getElementById('dur-' + msgId);
+  if (bar && audio.duration) bar.style.width = (audio.currentTime / audio.duration * 100) + '%';
+  if (dur) dur.textContent = formatAudioTime(audio.currentTime);
+}
+function updateMsgDuration(msgId, audio) {
+  const dur = document.getElementById('dur-' + msgId);
+  if (dur && audio.duration && isFinite(audio.duration)) dur.textContent = formatAudioTime(audio.duration);
+}
+function resetMsgAudio(msgId, btn) {
+  const bar = document.getElementById('prog-' + msgId);
+  if (bar) bar.style.width = '0%';
+  if (btn) resetPlayIcon(btn);
+}
+function seekMsgAudio(audioId, e) {
+  const audio = document.getElementById(audioId);
+  if (!audio || !audio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+}
+function formatAudioTime(secs) {
+  const s = Math.floor(secs % 60), m = Math.floor(secs / 60);
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+// Handler klik pesan: tandai sudah dibaca, reveal konten inline + buka viewer
+function handleMessageClick(cardElement, msgId, rawMessage, hasAudio) {
+  const username = state.session.username;
+  const isRead = isMessageRead(username, msgId);
+  if (!isRead) {
+    saveReadId(username, msgId);
+    cardElement.classList.remove('unread');
+    cardElement.classList.add('read');
+    const badge = cardElement.querySelector('.new-message-badge');
+    if (badge) badge.remove();
+    const italicText = cardElement.querySelector('.italic');
+    if (italicText) italicText.remove();
+    const contentDiv = cardElement.querySelector('.msg-content');
+    if (contentDiv) {
+      // find the msg data by msgId
+      const msg = state.messages.find(m => generateMessageId(m) === msgId);
+      let inner = '';
+      if (msg && msg.message) inner += `<p class="text-sm mb-3" style="color:var(--text);line-height:1.7;">${escapeHtml(msg.message)}</p>`;
+      if (msg && msg.audio_url) {
+        inner += `<div class="msg-audio-player" onclick="event.stopPropagation()">
+          <div class="msg-audio-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+          <button class="msg-play-btn" onclick="toggleMsgAudio('audio-${msgId}', this)" data-playing="false">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <div class="vn-progress-wrap" style="flex:1;" onclick="seekMsgAudio('audio-${msgId}', event)">
+            <div class="vn-progress-bar" id="prog-${msgId}"></div>
+          </div>
+          <span class="vn-duration" id="dur-${msgId}">0:00</span>
+          <audio id="audio-${msgId}" src="${msg.audio_url}" preload="metadata"
+            ontimeupdate="updateMsgProgress('${msgId}', this)"
+            onloadedmetadata="updateMsgDuration('${msgId}', this)"
+            onended="resetMsgAudio('${msgId}', this.parentElement.querySelector('.msg-play-btn'))">
+          </audio>
+        </div>`;
+      }
+      contentDiv.innerHTML = inner;
+      contentDiv.style.display = 'block';
+    }
+  }
+  openViewer(rawMessage);
+}
+
+function openViewer(text, audioUrl) {
+  const viewer = document.getElementById('msg-viewer');
+  const viewerMsgDiv = document.getElementById('viewer-msg');
+  if (!viewer || !viewerMsgDiv) return;
+  let content = '';
+  if (text && text.trim()) content += `<p style="line-height:1.65;font-size:16px;">${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+  if (audioUrl) {
+    content += `<div class="msg-audio-player" style="margin-top:${text ? '16px' : '0'};" onclick="event.stopPropagation()">
+      <div class="msg-audio-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+      <button class="msg-play-btn" onclick="toggleMsgAudio('viewer-audio', this)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+      <div class="vn-progress-wrap" style="flex:1;" onclick="seekMsgAudio('viewer-audio', event)">
+        <div class="vn-progress-bar" id="prog-viewer"></div>
+      </div>
+      <span class="vn-duration" id="dur-viewer">0:00</span>
+      <audio id="viewer-audio" src="${audioUrl}" preload="metadata"
+        ontimeupdate="updateMsgProgress('viewer', this)"
+        onloadedmetadata="updateMsgDuration('viewer', this)"
+        onended="resetMsgAudio('viewer', this.parentElement.querySelector('.msg-play-btn'))">
+      </audio>
+    </div>`;
+  }
+  viewerMsgDiv.innerHTML = content;
+  viewer.style.display = 'block';
+  requestAnimationFrame(() => viewer.classList.add('show'));
+  document.body.style.overflow = 'hidden';
+}
+function closeViewer() {
+  const viewer = document.getElementById('msg-viewer');
+  if (!viewer) return;
+  // pause viewer audio kalau ada
+  const va = document.getElementById('viewer-audio');
+  if (va) { va.pause(); va.currentTime = 0; }
+  viewer.classList.remove('show');
+  setTimeout(() => { viewer.style.display = 'none'; }, 250);
+  document.body.style.overflow = '';
+}
+
+/* ============================
+   ROUTER & PAGE CONTROLLER
+   ============================ */
+function router() {
+  const path = window.location.pathname;
+  try {
+    const raw = localStorage.getItem("whispr_session");
+    if (raw) state.session = JSON.parse(raw);
+  } catch(e) { localStorage.removeItem("whispr_session"); }
+  if (path.startsWith("/@")) {
+    state.currentSlug = path.slice(2);
+    showPage("send");
+    initSendPage(state.currentSlug);
+  } else if (path === "/" || path === "") {
+    if (state.session) { showPage("dashboard"); initDashboard(); }
+    else showPage("auth");
+  } else showPage("404");
+}
+function showPage(name) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  const el = document.getElementById(`page-${name}`);
+  if (el) {
+    el.classList.add("active");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+/* ============================
+   AUTH FUNCTIONS
+   ============================ */
+function switchAuthTab(tab) {
+  const loginForm = document.getElementById("form-login"), regForm = document.getElementById("form-register");
+  const tabLogin = document.getElementById("tab-login"), tabReg = document.getElementById("tab-register");
+  if (tab === "login") {
+    loginForm.style.display = "block"; regForm.style.display = "none";
+    tabLogin.classList.add("active"); tabReg.classList.remove("active");
+  } else {
+    loginForm.style.display = "none"; regForm.style.display = "block";
+    tabLogin.classList.remove("active"); tabReg.classList.add("active");
+  }
+}
+async function doLogin() {
+  const username = document.getElementById("login-username").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!username || !password) return toast("Isi semua field", "error");
+  const btn = document.getElementById("btn-login");
+  setLoading(btn, true);
+  try {
+    const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    const data = await res.json();
+    if (!res.ok) return toast(data.error || "Login gagal", "error");
+    saveSession({ username: data.username, slug: data.slug });
+    toast(`Selamat datang, ${data.username}!`);
+    setTimeout(() => { showPage("dashboard"); initDashboard(); }, 400);
+  } catch(e) { toast("Koneksi bermasalah", "error"); } finally { setLoading(btn, false); }
+}
+async function doRegister() {
+  const username = document.getElementById("reg-username").value.trim();
+  const password = document.getElementById("reg-password").value;
+  if (!username || !password) return toast("Isi semua field", "error");
+  const btn = document.getElementById("btn-register");
+  setLoading(btn, true);
+  try {
+    const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    const data = await res.json();
+    if (!res.ok) return toast(data.error || "Registrasi gagal", "error");
+    saveSession({ username: data.username, slug: data.slug });
+    toast(`Akun ${data.username} berhasil dibuat!`);
+    setTimeout(() => { showPage("dashboard"); initDashboard(); }, 400);
+  } catch(e) { toast("Koneksi bermasalah", "error"); } finally { setLoading(btn, false); }
+}
+function saveSession(session) { state.session = session; localStorage.setItem("whispr_session", JSON.stringify(session)); }
+function doLogout() { localStorage.removeItem("whispr_session"); state.session = null; state.messages = []; toast("Sampai jumpa!"); setTimeout(() => showPage("auth"), 400); }
+
+/* ============================
+   DASHBOARD
+   ============================ */
+function initDashboard() {
+  if (!state.session) return;
+  const { username, slug } = state.session;
+  const baseUrl = window.location.origin;
+  const link = `${baseUrl}/@${slug}`;
+  document.getElementById("nav-username").textContent = `@${username}`;
+  document.getElementById("link-text").textContent = link;
+  document.getElementById("stat-username").textContent = `@${username}`;
+  loadMessages();
+}
+function showDashTab(tab) {
+  const homeDiv = document.getElementById("dash-home"), pesanDiv = document.getElementById("dash-pesan");
+  const isHome = tab === "home";
+  const activeContent = isHome ? homeDiv : pesanDiv;
+  const inactiveContent = isHome ? pesanDiv : homeDiv;
+  if (activeContent.style.display === "block" || (activeContent === homeDiv && homeDiv.style.display !== "none")) return;
+  inactiveContent.classList.remove("active");
+  setTimeout(() => {
+    inactiveContent.style.display = "none";
+    activeContent.style.display = "block";
+    void activeContent.offsetWidth;
+    activeContent.classList.add("active");
+  }, 150);
+  document.getElementById("dash-nav-home").classList.toggle("active", isHome);
+  document.getElementById("dash-nav-pesan").classList.toggle("active", !isHome);
+  if (!isHome) loadMessages();
+}
+async function loadMessages() {
+  if (!state.session) return;
+  const { username } = state.session;
+  const container = document.getElementById("messages-container");
+  if (container) container.innerHTML = `<div class="flex justify-center py-12"><div class="spin"></div></div>`;
+  try {
+    const res = await fetch(`/api/messages?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    state.messages = data.messages || [];
+    renderMessages();
+    updateBadge();
+    document.getElementById("stat-total").textContent = state.messages.length;
+  } catch(e) { if (container) container.innerHTML = `<div class="empty"><p>Gagal memuat pesan</p></div>`; }
+}
+function updateBadge() {
+  const badge = document.getElementById("msg-badge");
+  const count = state.messages.length;
+  if (count > 0) { badge.style.display = "inline-flex"; badge.textContent = count > 99 ? "99+" : count; }
+  else badge.style.display = "none";
+}
+function copyLink() {
+  const link = document.getElementById("link-text").textContent;
+  navigator.clipboard.writeText(link).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.textContent = "✓ Disalin";
+    setTimeout(() => btn.textContent = "Salin", 2000);
+    toast("Link disalin!");
+  });
+}
+function shareLink() {
+  const link = document.getElementById("link-text").textContent;
+  if (navigator.share) navigator.share({ title: "whispr — kirim pesan anonim ke gw", url: link });
+  else copyLink();
+}
+
+/* ============================
+   SEND PAGE (dengan Turnstile)
+   ============================ */
+async function initSendPage(slug) {
+  try {
+    const res = await fetch(`/api/profile?slug=${encodeURIComponent(slug)}`);
+    if (!res.ok) { showPage("404"); return; }
+    const data = await res.json();
+    state.sendPageRecipient = data.username;
+    document.getElementById("send-username").textContent = `@${data.username}`;
+    document.title = `Kirim pesan anonim ke @${data.username} · whispr`;
+  } catch(e) { showPage("404"); }
+}
+
+async function doSend() {
+  const message = document.getElementById("send-msg").value.trim();
+  const hasVoice = !!state.vnBlob;
+
+  if (!message && !hasVoice) return toast("Tulis pesan atau rekam suara dulu", "error");
+  if (message.length > 500) return toast("Pesan terlalu panjang (maks 500 karakter)", "error");
+
+  const captchaToken = document.querySelector('[name="cf-turnstile-response"]')?.value;
+  if (!captchaToken) { toast("Verifikasi keamanan gagal, coba refresh halaman.", "error"); return; }
+
+  const btn = document.getElementById("btn-send");
+  setLoading(btn, true);
+
+  try {
+    let audio_url = null;
+
+    // upload VN ke Supabase dulu kalau ada
+    if (hasVoice) {
+      toast("Mengupload voice note...");
+      const slug = state.currentSlug;
+      // ambil username penerima dari profile (sudah di-fetch sebelumnya)
+      const recipient = state.sendPageRecipient || slug;
+      const formData = new FormData();
+      formData.append("audio", state.vnBlob, "voice.webm");
+      formData.append("recipient", recipient);
+      const uploadRes = await fetch("/api/upload-audio", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) { toast(uploadData.error || "Gagal upload audio", "error"); return; }
+      audio_url = uploadData.audio_url;
+    }
+
+    const res = await fetch("/api/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: state.currentSlug, message: message || null, audio_url, captchaToken })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 403) toast("Captcha tidak valid, coba lagi", "error");
+      else toast(data.error || "Gagal kirim", "error");
+      return;
+    }
+    document.getElementById("send-form-wrap").style.display = "none";
+    document.getElementById("send-success").style.display = "block";
+    state.vnBlob = null;
+    if (typeof turnstile !== 'undefined') turnstile.reset(document.getElementById('captcha-widget'));
+  } catch(e) {
+    toast("Koneksi bermasalah", "error");
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function resetSendForm() {
+  document.getElementById("send-msg").value = "";
+  document.getElementById("char-count").textContent = "0 / 500";
+  document.getElementById("send-form-wrap").style.display = "block";
+  document.getElementById("send-success").style.display = "none";
+  cancelRecording();
+  if (typeof turnstile !== 'undefined') turnstile.reset(document.getElementById('captcha-widget'));
+}
+function updateCharCount() {
+  const len = document.getElementById("send-msg").value.length;
+  const el = document.getElementById("char-count");
+  el.textContent = `${len} / 500`;
+  el.className = "char-count" + (len > 450 ? " warn" : "") + (len > 480 ? " danger" : "");
+}
+
+/* ============================
+   DANGER ZONE MODALS
+   ============================ */
+function showClearMessagesModal() {
+  const backdrop = document.getElementById("modal-backdrop"), modal = document.getElementById("modal-clear");
+  backdrop.style.display = "block"; modal.style.display = "block";
+  setTimeout(() => { backdrop.classList.add("show"); modal.classList.add("show"); }, 10);
+}
+function showDeleteAccountModal() {
+  document.getElementById("delete-confirm-pw").value = "";
+  const backdrop = document.getElementById("modal-backdrop"), modal = document.getElementById("modal-delete");
+  backdrop.style.display = "block"; modal.style.display = "block";
+  setTimeout(() => { backdrop.classList.add("show"); modal.classList.add("show"); }, 10);
+}
+function closeModal() {
+  const backdrop = document.getElementById("modal-backdrop"), clearModal = document.getElementById("modal-clear"), deleteModal = document.getElementById("modal-delete");
+  backdrop.classList.remove("show");
+  if (clearModal) clearModal.classList.remove("show");
+  if (deleteModal) deleteModal.classList.remove("show");
+  setTimeout(() => {
+    backdrop.style.display = "none";
+    if (clearModal) clearModal.style.display = "none";
+    if (deleteModal) deleteModal.style.display = "none";
+  }, 200);
+}
+async function doClearMessages() {
+  if (!state.session) return;
+  const btn = document.getElementById("btn-clear-confirm");
+  setLoading(btn, true);
+  try {
+    const res = await fetch("/api/clear-messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: state.session.username }) });
+    const data = await res.json();
+    if (!res.ok) return toast(data.error || "Gagal hapus pesan", "error");
+    state.messages = [];
+    document.getElementById("stat-total").textContent = "0";
+    updateBadge();
+    closeModal();
+    toast("Semua pesan berhasil dihapus");
+    if (document.getElementById("dash-pesan").style.display !== "none") loadMessages();
+  } catch(e) { toast("Koneksi bermasalah", "error"); } finally { setLoading(btn, false); }
+}
+async function doDeleteAccount() {
+  if (!state.session) return;
+  const password = document.getElementById("delete-confirm-pw").value;
+  if (!password) return toast("Masukkan password", "error");
+  const btn = document.getElementById("btn-delete-confirm");
+  setLoading(btn, true);
+  try {
+    const res = await fetch("/api/delete-account", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: state.session.username, password }) });
+    const data = await res.json();
+    if (!res.ok) return toast(data.error || "Gagal hapus akun", "error");
+    closeModal();
+    toast("Akun berhasil dihapus");
+    setTimeout(() => {
+      localStorage.removeItem("whispr_session");
+      state.session = null;
+      state.messages = [];
+      showPage("auth");
+    }, 1000);
+  } catch(e) { toast("Koneksi bermasalah", "error"); } finally { setLoading(btn, false); }
+}
+
+
+/* ============================
+   VOICE NOTE RECORDER
+   ============================ */
+// state rekaman
+state.vnBlob = null;
+state.vnMediaRecorder = null;
+state.vnChunks = [];
+state.vnTimerInterval = null;
+state.vnSeconds = 0;
+state.vnPreviewAudio = null;
+
+async function toggleRecording() {
+  if (state.vnMediaRecorder && state.vnMediaRecorder.state === 'recording') {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    state.vnChunks = [];
+    state.vnSeconds = 0;
+
+    // pilih format yang didukung
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+      : 'audio/ogg';
+
+    state.vnMediaRecorder = new MediaRecorder(stream, { mimeType });
+    state.vnMediaRecorder.ondataavailable = e => { if (e.data.size > 0) state.vnChunks.push(e.data); };
+    state.vnMediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      state.vnBlob = new Blob(state.vnChunks, { type: mimeType });
+      showVnPreview();
+    };
+
+    state.vnMediaRecorder.start(100);
+
+    // UI: recording state
+    document.getElementById('vn-idle').style.display = 'none';
+    document.getElementById('vn-recording').style.display = 'flex';
+    document.getElementById('vn-preview-wrap').style.display = 'none';
+    document.getElementById('vn-cancel-btn').style.display = 'block';
+
+    // timer
+    updateVnTimer();
+    state.vnTimerInterval = setInterval(() => {
+      state.vnSeconds++;
+      if (state.vnSeconds >= 120) stopRecording(); // max 2 menit
+      updateVnTimer();
+    }, 1000);
+
+  } catch(e) {
+    if (e.name === 'NotAllowedError') toast("Izin mikrofon ditolak", "error");
+    else toast("Mikrofon tidak tersedia", "error");
+  }
+}
+
+function stopRecording() {
+  clearInterval(state.vnTimerInterval);
+  if (state.vnMediaRecorder && state.vnMediaRecorder.state !== 'inactive') {
+    state.vnMediaRecorder.stop();
+  }
+  document.getElementById('vn-recording').style.display = 'none';
+}
+
+function updateVnTimer() {
+  const m = Math.floor(state.vnSeconds / 60), s = state.vnSeconds % 60;
+  document.getElementById('vn-timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function showVnPreview() {
+  document.getElementById('vn-idle').style.display = 'none';
+  document.getElementById('vn-recording').style.display = 'none';
+  document.getElementById('vn-preview-wrap').style.display = 'block';
+
+  // setup preview audio
+  if (state.vnPreviewAudio) { state.vnPreviewAudio.pause(); state.vnPreviewAudio = null; }
+  const url = URL.createObjectURL(state.vnBlob);
+  state.vnPreviewAudio = new Audio(url);
+  state.vnPreviewAudio.onloadedmetadata = () => {
+    const d = state.vnPreviewAudio.duration;
+    if (isFinite(d)) document.getElementById('vn-duration').textContent = formatAudioTime(d);
+  };
+  state.vnPreviewAudio.ontimeupdate = () => {
+    if (!state.vnPreviewAudio.duration) return;
+    const pct = state.vnPreviewAudio.currentTime / state.vnPreviewAudio.duration * 100;
+    document.getElementById('vn-progress-bar').style.width = pct + '%';
+    document.getElementById('vn-duration').textContent = formatAudioTime(state.vnPreviewAudio.currentTime);
+  };
+  state.vnPreviewAudio.onended = () => {
+    document.getElementById('vn-progress-bar').style.width = '0%';
+    document.getElementById('vn-play-icon').innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+  };
+}
+
+function togglePreviewPlay() {
+  const audio = state.vnPreviewAudio;
+  if (!audio) return;
+  const icon = document.getElementById('vn-play-icon');
+  if (audio.paused) {
+    audio.play();
+    icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+  } else {
+    audio.pause();
+    icon.innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+  }
+}
+
+function seekPreview(e) {
+  if (!state.vnPreviewAudio || !state.vnPreviewAudio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  state.vnPreviewAudio.currentTime = ((e.clientX - rect.left) / rect.width) * state.vnPreviewAudio.duration;
+}
+
+function reRecord() {
+  cancelRecording();
+  document.getElementById('vn-idle').style.display = 'flex';
+  document.getElementById('vn-cancel-btn').style.display = 'none';
+}
+
+function cancelRecording() {
+  // stop kalau masih recording
+  clearInterval(state.vnTimerInterval);
+  if (state.vnMediaRecorder && state.vnMediaRecorder.state !== 'inactive') {
+    state.vnMediaRecorder.stop();
+  }
+  if (state.vnPreviewAudio) { state.vnPreviewAudio.pause(); state.vnPreviewAudio = null; }
+  state.vnBlob = null;
+  state.vnChunks = [];
+  state.vnSeconds = 0;
+
+  // reset UI ke idle
+  const idleEl = document.getElementById('vn-idle');
+  const recEl = document.getElementById('vn-recording');
+  const prevEl = document.getElementById('vn-preview-wrap');
+  const cancelBtn = document.getElementById('vn-cancel-btn');
+  if (idleEl) idleEl.style.display = 'flex';
+  if (recEl) recEl.style.display = 'none';
+  if (prevEl) prevEl.style.display = 'none';
+  if (cancelBtn) cancelBtn.style.display = 'none';
+}
+
+/* ============================
+   INITIALIZATION
+   ============================ */
+document.addEventListener("DOMContentLoaded", () => {
+  ["login-username", "login-password"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+  });
+  ["reg-username", "reg-password"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("keydown", e => { if (e.key === "Enter") doRegister(); });
+  });
+  router();
+  window.addEventListener("scroll", () => {
+    const btn = document.getElementById("scroll-top");
+    if (window.scrollY > 300) btn.classList.add("visible");
+    else btn.classList.remove("visible");
+  });
+  setTimeout(() => { const home = document.getElementById("dash-home"); if (home) home.classList.add("active"); }, 100);
+});
+</script>
 </body>
 </html>
